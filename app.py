@@ -2,17 +2,10 @@
 Ejercicio 1: Superpoderes y Personalización del Agente
 Autores: Angie Yesenia Giraldo Gavilan, Cesar Augusto Florez Castaño, Jhonatan Rojas Diaz
 """
-import os
-from huggingface_hub import login
 
-hf_token = os.environ.get("HF_TOKEN")
-if hf_token:
-    login(token=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)
-
-
-import raimport random
+import random
 import requests
-from smolagents import CodeAgent, InferenceClientModel, tool, FinalAnswerTool
+from smolagents import CodeAgent, HfApiModel, tool, FinalAnswerTool
 import gradio as gr
 
 # ============================================================
@@ -78,3 +71,79 @@ def obtener_clima(ciudad: str) -> str:
         return f"Error al consultar el clima: {str(e)}"
 
 
+# ============================================================
+# 🎯 MODIFICACIÓN DEL FinalAnswerTool
+# Objetivo: Personalizar la respuesta final del agente
+# ============================================================
+class MiFinalAnswerTool(FinalAnswerTool):
+    """
+    Versión personalizada del FinalAnswerTool.
+    Agrega un prefijo, firma y conteo de caracteres a cada respuesta.
+    """
+
+    # Sobrescribimos el método forward que es el que genera la respuesta
+    def forward(self, answer: str) -> str:
+        # 1️⃣ Contamos cuántos caracteres tiene la respuesta original
+        num_caracteres = len(answer)
+
+        # 2️⃣ Construimos la respuesta con prefijo, contenido y firma
+        respuesta_formateada = (
+            f"🤖 Agente dice:\n\n"          # Prefijo con emoji
+            f"{answer}\n\n"                  # Respuesta original del agente
+            f"📊 Esta respuesta tiene {num_caracteres} caracteres.\n"  # Conteo de caracteres
+            f"--- Procesado por Angie, Cesar y Jhonatan ---"           # Firma del equipo
+        )
+
+        return respuesta_formateada
+
+
+# ============================================================
+# 🚀 CONFIGURACIÓN DEL AGENTE
+# ============================================================
+
+# Modelo que usará el agente (gratuito en HF Spaces)
+modelo = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct")
+
+# Creamos el agente con las herramientas personalizadas
+agente = CodeAgent(
+    tools=[
+        calcular_area,       # Herramienta 1: Calculador de áreas
+        obtener_clima,       # Herramienta 2: Clima con API
+        MiFinalAnswerTool(), # FinalAnswerTool modificado
+    ],
+    model=modelo,
+    max_steps=5,
+)
+
+
+# ============================================================
+# 🖥️ INTERFAZ GRADIO
+# ============================================================
+def responder(pregunta):
+    resultado = agente.run(pregunta)
+    return resultado
+
+interfaz = gr.Interface(
+    fn=responder,
+    inputs=gr.Textbox(
+        label="¿Qué quieres preguntarle al agente?",
+        placeholder="Ej: ¿Cuál es el área de un rectángulo de base 5 y altura 3?"
+    ),
+    outputs=gr.Textbox(label="Respuesta del Agente"),
+    title="🤖 Agente Inteligente - Ejercicio 1",
+    description=(
+        "Agente con superpoderes:\n"
+        "📐 Puede calcular áreas de figuras geométricas\n"
+        "🌤️ Puede consultar el clima de cualquier ciudad\n\n"
+        "Autores: Angie Giraldo | Cesar Florez | Jhonatan Rojas"
+    ),
+    examples=[
+        ["¿Cuál es el área de un triángulo con base 6 y altura 4?"],
+        ["¿Qué clima hace hoy en Medellín?"],
+        ["Calcula el área de un círculo con radio 7"],
+        ["¿Cómo está el tiempo en Bogotá?"],
+    ]
+)
+
+if __name__ == "__main__":
+    interfaz.launch()
